@@ -7,6 +7,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AutomationBuildingController {
 	@GetMapping(value="/get")
 public String getall() {
-		return "hellow";
+		return "hellow baby i miss u";
 	}
 }
