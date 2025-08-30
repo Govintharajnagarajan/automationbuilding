@@ -1,0 +1,60 @@
+name: Generate Release Notes from PR Commits
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true # Only run if the PR is merged
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Git
+        run: |
+          git fetch --prune --unshallow
+
+      - name: Get All Commit Messages
+        id: get_commits
+        run: |
+          # Get all commits in the PR (not just the merge commit)
+          COMMITS=$(git log --format=%s ${GITHUB_EVENT_PULL_REQUEST_HEAD_SHA}^..${GITHUB_EVENT_PULL_REQUEST_HEAD_SHA})
+          
+          # Categorize commit messages and add emojis
+          RELEASE_NOTES="### Release Notes for PR #${{ github.event.pull_request.number }}\n\n"
+          
+          for commit in $COMMITS
+          do
+            if [[ $commit == feat* ]]; then
+              RELEASE_NOTES+=":sparkles: Feature: $commit\n"
+            elif [[ $commit == fix* ]]; then
+              RELEASE_NOTES+=":bug: Fix: $commit\n"
+            elif [[ $commit == docs* ]]; then
+              RELEASE_NOTES+=":book: Docs: $commit\n"
+            elif [[ $commit == chore* ]]; then
+              RELEASE_NOTES+=":wrench: Chore: $commit\n"
+            elif [[ $commit == refactor* ]]; then
+              RELEASE_NOTES+=":recycle: Refactor: $commit\n"
+            else
+              RELEASE_NOTES+=":memo: Other: $commit\n"
+            fi
+          done
+
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_NOTES" >> $GITHUB_ENV
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.pull_request.head.ref }}
+          release_name: "Release - PR #${{ github.event.pull_request.number }}"
+          body: ${{ env.RELEASE_NOTES }}
+          draft: true
+          prerelease: false
+          
+      - name: Post Release Information
+        run: echo "Release draft created with notes: ${{ env.RELEASE_NOTES }}"
