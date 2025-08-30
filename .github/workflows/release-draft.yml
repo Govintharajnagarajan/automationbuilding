@@ -14,6 +14,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Get PR Title
+        id: pr_title
+        run: echo "PR_TITLE=$(curl -s https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} | jq -r '.title')" >> $GITHUB_ENV
+
       - name: Set up Git
         run: |
           git fetch --prune --unshallow
@@ -24,9 +28,10 @@ jobs:
           # Get all commits in the PR (not just the merge commit)
           COMMITS=$(git log --format=%s ${GITHUB_EVENT_PULL_REQUEST_HEAD_SHA}^..${GITHUB_EVENT_PULL_REQUEST_HEAD_SHA})
           
-          # Categorize commit messages and add emojis
-          RELEASE_NOTES="### Release Notes for PR #${{ github.event.pull_request.number }}\n\n"
+          # Start release notes with PR title
+          RELEASE_NOTES="### Release Notes for PR: '${{ env.PR_TITLE }}' (#${{ github.event.pull_request.number }})\n\n"
           
+          # Categorize commit messages and add emojis
           for commit in $COMMITS
           do
             if [[ $commit == feat* ]]; then
@@ -44,6 +49,7 @@ jobs:
             fi
           done
 
+          # Set the release notes to GitHub Actions environment variable
           echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
           echo "$RELEASE_NOTES" >> $GITHUB_ENV
 
@@ -51,10 +57,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.pull_request.head.ref }}
-          release_name: "Release - PR #${{ github.event.pull_request.number }}"
+          release_name: "Release - PR #${{ github.event.pull_request.number }}: ${{ env.PR_TITLE }}"
           body: ${{ env.RELEASE_NOTES }}
           draft: true
           prerelease: false
-          
+
       - name: Post Release Information
         run: echo "Release draft created with notes: ${{ env.RELEASE_NOTES }}"
