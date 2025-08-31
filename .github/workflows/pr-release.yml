@@ -21,12 +21,6 @@ jobs:
           # This is crucial: Fetch the full history to make git log work correctly.
           fetch-depth: 0
 
-      - name: Calculate next semantic version
-        id: semver
-        uses: phipsg/gh-action-next-semver@v1.1
-        with:
-          initial-version: '1.0.0'
-
       - name: Generate and format release notes
         id: generate_notes
         run: |
@@ -37,12 +31,14 @@ jobs:
           RELEASE_BODY="## What's Changed
 "
 
-          # Categorize commit messages
+          # Categorize commit messages based on Conventional Commits format
+          # and format them with emojis.
           FEATS=$(echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/* ✨ Feat:/')
           FIXES=$(echo "$COMMITS" | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/')
           CHORES=$(echo "$COMMITS" | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/')
           DOCS=$(echo "$COMMITS" | grep '^docs:' | sed 's/^docs:/* 📚 Docs:/')
 
+          # Append categories to the release body only if they contain commits.
           if [ ! -z "$FEATS" ]; then
             RELEASE_BODY="$RELEASE_BODY
 
@@ -75,7 +71,7 @@ $DOCS
           # Add the Full Changelog link
           RELEASE_BODY="$RELEASE_BODY
 
-**Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.semver.outputs.current_version }}...v${{ steps.semver.outputs.next_version }}"
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
 
           # Set the final release body as an output variable
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
@@ -86,6 +82,6 @@ $DOCS
         id: create_tag
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v${{ steps.semver.outputs.next_version }}"
-          name: "v${{ steps.semver.outputs.next_version }}"
+          tag_name: "release-${{ github.run_number }}"
+          name: "Release ${{ github.event.pull_request.title }}"
           body: ${{ env.RELEASE_BODY }}
