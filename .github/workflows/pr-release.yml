@@ -29,8 +29,7 @@ jobs:
 
           # Initialize the release body with a header
           RELEASE_BODY="## What's Changed
-"
-
+          
           # Categorize commit messages
           FEATS=$(echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/✨ Feat:/')
           FIXES=$(echo "$COMMITS" | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/🐛 Fix:/')
