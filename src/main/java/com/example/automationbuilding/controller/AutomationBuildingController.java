@@ -7,6 +7,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AutomationBuildingController {
 	@GetMapping(value="/get")
 public String getall() {
-		return "Never Ever give up ";
+		return "Never Ever give up";
 	}
 }
