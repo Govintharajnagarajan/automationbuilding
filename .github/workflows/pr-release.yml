@@ -20,9 +20,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Calculate next semantic version
+      - name: Calculate next version
         id: semver
-        uses: phipsg/next-semver-action@v1.1
+        uses: phipsg/gh-action-next-semver@v1.1
         with:
           initial-version: '1.0.0'
 
