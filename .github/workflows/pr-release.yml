@@ -18,55 +18,68 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # This is crucial: Fetch the full history to make git log work correctly.
           fetch-depth: 0
 
-      - name: Calculate next version
-        id: semver
-        uses: phipsg/gh-action-next-semver@v1.1
-        with:
-          initial-version: '1.0.0'
-
-      - name: Generate formatted release notes
+      - name: Generate and format release notes
         id: generate_notes
         run: |
           # Fetch all commit messages from the PR
           COMMITS=$(git log --format=%B --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
 
           # Initialize the release body with a header
-          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-          echo "## What's Changed" >> $GITHUB_ENV
-          echo "" >> $GITHUB_ENV
+          RELEASE_BODY="## What's Changed
+"
 
           # Categorize commit messages
-          FEATS=$(echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/* Feat:/')
-          FIXES=$(echo "$COMMITS" | grep '^fix:' | sed 's/^fix:/* Fix:/')
-          BUGS=$(echo "$COMMITS" | grep '^bug:' | sed 's/^bug:/* Bug:/')
-          CHORES=$(echo "$COMMITS" | grep '^chore:' | sed 's/^chore:/* Chore:/')
-          
+          FEATS=$(echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/✨ Feat:/')
+          FIXES=$(echo "$COMMITS" | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/🐛 Fix:/')
+          CHORES=$(echo "$COMMITS" | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/🛠️ Maintenance:/')
+          DOCS=$(echo "$COMMITS" | grep '^docs:' | sed 's/^docs:/📚 Docs:/')
+
           if [ ! -z "$FEATS" ]; then
-            echo "### Features" >> $GITHUB_ENV
-            echo "$FEATS" >> $GITHUB_ENV
-            echo "" >> $GITHUB_ENV
+            RELEASE_BODY="$RELEASE_BODY
+
+### Features
+$FEATS
+"
           fi
-          if [ ! -z "$FIXES" ] || [ ! -z "$BUGS" ]; then
-            echo "### Bug Fixes" >> $GITHUB_ENV
-            echo "$FIXES" >> $GITHUB_ENV
-            echo "$BUGS" >> $GITHUB_ENV
-            echo "" >> $GITHUB_ENV
+          if [ ! -z "$FIXES" ]; then
+            RELEASE_BODY="$RELEASE_BODY
+
+### Bug Fixes
+$FIXES
+"
           fi
           if [ ! -z "$CHORES" ]; then
-            echo "### Maintenance" >> $GITHUB_ENV
-            echo "$CHORES" >> $GITHUB_ENV
-            echo "" >> $GITHUB_ENV
+            RELEASE_BODY="$RELEASE_BODY
+
+### Maintenance
+$CHORES
+"
           fi
-          
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.semver.outputs.current_version }}...v${{ steps.semver.outputs.next_version }}" >> $GITHUB_ENV
+          if [ ! -z "$DOCS" ]; then
+            RELEASE_BODY="$RELEASE_BODY
+
+### Documentation
+$DOCS
+"
+          fi
+
+          # Add the Full Changelog link
+          RELEASE_BODY="$RELEASE_BODY
+
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
+
+          # Set the final release body as an output variable
+          echo "release_body<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Create release tag
         id: create_tag
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: "v${{ steps.semver.outputs.next_version }}"
-          name: "v${{ steps.semver.outputs.next_version }}"
-          body: ${{ env.RELEASE_BODY }}
+          tag_name: "release-${{ github.event.pull_request.merged_at }}"
+          name: "Release ${{ github.event.pull_request.title }}"
+          body: ${{ env.release_body }}
