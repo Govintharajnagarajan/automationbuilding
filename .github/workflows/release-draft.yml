@@ -1,66 +1,52 @@
-name: Generate Release Notes from PR Commits
+name: Release from Merged PR
 
 on:
   pull_request:
     types:
       - closed
+    branches:
+      - main
 
 jobs:
-  release:
+  create_release:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true # Only run if the PR is merged
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          # This is crucial: Fetch the full history to make git log work correctly.
+          fetch-depth: 0 
 
-      - name: Get PR Title
-        id: pr_title
-        run: echo "PR_TITLE=$(curl -s https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} | jq -r '.title')" >> $GITHUB_ENV
-
-      - name: Set up Git
+      - name: Fetch all commit messages
+        id: fetch_commits
         run: |
-          git fetch --prune --unshallow
-
-      - name: Get All Commit Messages
-        id: get_commits
+          COMMITS=$(git log --format=%B --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          echo "commit_messages<<EOF" >> $GITHUB_ENV
+          echo "$COMMITS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      
+      - name: Get PR title
+        id: get_pr_title
         run: |
-          # Get all commits in the PR (not just the merge commit)
-          COMMITS=$(git log --format=%s ${GITHUB_EVENT_PULL_REQUEST_HEAD_SHA}^..${GITHUB_EVENT_PULL_REQUEST_HEAD_SHA})
-          
-          # Start release notes with PR title
-          RELEASE_NOTES="### Release Notes for PR: '${{ env.PR_TITLE }}' (#${{ github.event.pull_request.number }})\n\n"
-          
-          # Categorize commit messages and add emojis
-          for commit in $COMMITS
-          do
-            if [[ $commit == feat* ]]; then
-              RELEASE_NOTES+=":sparkles: Feature: $commit\n"
-            elif [[ $commit == fix* ]]; then
-              RELEASE_NOTES+=":bug: Fix: $commit\n"
-            elif [[ $commit == docs* ]]; then
-              RELEASE_NOTES+=":book: Docs: $commit\n"
-            elif [[ $commit == chore* ]]; then
-              RELEASE_NOTES+=":wrench: Chore: $commit\n"
-            elif [[ $commit == refactor* ]]; then
-              RELEASE_NOTES+=":recycle: Refactor: $commit\n"
-            else
-              RELEASE_NOTES+=":memo: Other: $commit\n"
-            fi
-          done
-
-          # Set the release notes to GitHub Actions environment variable
-          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
-          echo "$RELEASE_NOTES" >> $GITHUB_ENV
-
-      - name: Create Draft Release
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "pr_title=$PR_TITLE" >> $GITHUB_ENV
+      
+      - name: Get current date and time
+        id: get_date
+        run: echo "date=$(date +'%Y.%m.%d')" >> $GITHUB_ENV
+      
+      - name: Create release tag
+        id: create_tag
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.pull_request.head.ref }}
-          release_name: "Release - PR #${{ github.event.pull_request.number }}: ${{ env.PR_TITLE }}"
-          body: ${{ env.RELEASE_NOTES }}
-          draft: true
-          prerelease: false
+          tag_name: "release-${{ env.date }}-${{ github.run_number }}"
+          name: "Release ${{ github.event.pull_request.title }}"
+          body: |
+            **Pull Request Title:** ${{ env.pr_title }}
 
-      - name: Post Release Information
-        run: echo "Release draft created with notes: ${{ env.RELEASE_NOTES }}"
+            **Commit Messages:**
+            ${{ env.commit_messages }}
