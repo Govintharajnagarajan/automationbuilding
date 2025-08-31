@@ -18,64 +18,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # This is crucial: Fetch the full history to make git log work correctly.
           fetch-depth: 0
 
-      - name: Generate and format release notes
+      - name: Generate formatted release notes
         id: generate_notes
         run: |
-          # Fetch all commit messages from the PR
           COMMITS=$(git log --format=%B --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
-
-          # Initialize the release body with a header
-          RELEASE_BODY="## What's Changed
-"
-
-          # Categorize commit messages based on Conventional Commits format
-          # and format them with emojis.
-          FEATS=$(echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/* ✨ Feat:/')
-          FIXES=$(echo "$COMMITS" | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/')
-          CHORES=$(echo "$COMMITS" | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/')
-          DOCS=$(echo "$COMMITS" | grep '^docs:' | sed 's/^docs:/* 📚 Docs:/')
-
-          # Append categories to the release body only if they contain commits.
-          if [ ! -z "$FEATS" ]; then
-            RELEASE_BODY="$RELEASE_BODY
-
-### Features
-$FEATS
-"
-          fi
-          if [ ! -z "$FIXES" ]; then
-            RELEASE_BODY="$RELEASE_BODY
-
-### Bug Fixes
-$FIXES
-"
-          fi
-          if [ ! -z "$CHORES" ]; then
-            RELEASE_BODY="$RELEASE_BODY
-
-### Maintenance
-$CHORES
-"
-          fi
-          if [ ! -z "$DOCS" ]; then
-            RELEASE_BODY="$RELEASE_BODY
-
-### Documentation
-$DOCS
-"
-          fi
-
-          # Add the Full Changelog link
-          RELEASE_BODY="$RELEASE_BODY
-
-**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}"
-
-          # Set the final release body as an output variable
+          
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-          echo "$RELEASE_BODY" >> $GITHUB_ENV
+          echo "## What's Changed" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+
+          echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/* ✨ Feat:/' >> $GITHUB_ENV
+          echo "$COMMITS" | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
+          echo "$COMMITS" | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
+          echo "$COMMITS" | grep '^docs:' | sed 's/^docs:/* 📚 Docs:/' >> $GITHUB_ENV
+
+          echo "" >> $GITHUB_ENV
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Create release tag
