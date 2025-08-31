@@ -20,19 +20,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate Release Notes
-        id: changelog
-        uses: mikepenz/release-changelog-generator@v1
-        with:
-          # This action will automatically categorize your commits.
-          # The template defines how the changelog is formatted.
-          # You can remove this for a more basic template.
-          template: "## What's Changed\n\n{{#with groups}}\n\n{{#if features}}### ✨ Features\n{{#each features}}* {{this.body}} ({{this.author.login}})\n{{/each}}{{/if}}\n\n{{#if fixes}}### 🐛 Bug Fixes\n{{#each fixes}}* {{this.body}} ({{this.author.login}})\n{{/each}}{{/if}}\n\n{{#if changes}}### 🛠️ Maintenance\n{{#each changes}}* {{this.body}} ({{this.author.login}})\n{{/each}}{{/if}}\n\n{{/with}}\n\n{{#each unparsed_commits}}* {{this.body}} ({{this.author.login}})\n{{/each}}\n\n**Full Changelog**: https://github.com/{{ owner }}/{{ repository }}/compare/{{ tag_name }}...{{ new_tag_name }}"
+      - name: Generate formatted release notes
+        id: generate_notes
+        run: |
+          COMMITS=$(git log --format=%B --no-merges --reverse ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "## What's Changed" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+
+          echo "$COMMITS" | grep '^feat:' | sed 's/^feat:/* ✨ Feat:/' >> $GITHUB_ENV
+          echo "$COMMITS" | grep -E '^(fix|bug):' | sed -E 's/^(fix|bug):/* 🐛 Fix:/' >> $GITHUB_ENV
+          echo "$COMMITS" | grep -E '^(chore|refactor|style):' | sed -E 's/^(chore|refactor|style):/* 🛠️ Maintenance:/' >> $GITHUB_ENV
+          echo "$COMMITS" | grep '^docs:' | sed 's/^docs:/* 📚 Docs:/' >> $GITHUB_ENV
+
+          echo "" >> $GITHUB_ENV
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Create release tag
         id: create_tag
         uses: softprops/action-gh-release@v1
+        
         with:
           tag_name: "release-${{ github.run_number }}"
           name: "Release ${{ github.event.pull_request.title }}"
-          body: ${{ steps.changelog.outputs.changelog }}
+          body: ${{ env.RELEASE_BODY }}
+          drop: true
